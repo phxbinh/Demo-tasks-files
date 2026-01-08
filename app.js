@@ -269,7 +269,7 @@ function Tasks() {
 
     loading && !tasks.length ? h('p', null, 'Đang tải...') :
       h('ul', { style: { listStyle: 'none', padding: 0 } },
-        tasks.map(TaskItem)
+        ...tasks.map(TaskItem)
       )
   );
 }
