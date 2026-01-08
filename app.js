@@ -45,6 +45,7 @@ function Tasks() {
     fetchTasks();
   }, []);
 
+/*
   const fetchTasks = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -59,6 +60,35 @@ function Tasks() {
     }
     setLoading(false);
   };
+*/
+const fetchTasks = async () => {
+  setLoading(true);
+  setMessage('');
+
+  try {
+    const { data, error } = await supabase
+      .from('tasks')
+      .select('id, title, completed, pdf_url, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Supabase error:', error);
+      setMessage('Lỗi load: ' + error.message);
+      setTasks([]);
+    } else {
+      console.log('Load thành công:', data);
+      setTasks(data || []);
+    }
+  } catch (err) {
+    console.error('Lỗi bất ngờ:', err);
+    setMessage('Lỗi kết nối Supabase');
+    setTasks([]);
+  } finally {
+    // <<< Dòng quan trọng nhất: luôn tắt loading
+    setLoading(false);
+  }
+};
+
 
   // Upload file PDF → trả về public URL
   const uploadPdf = async (file, taskId) => {
