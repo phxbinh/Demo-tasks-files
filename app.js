@@ -64,31 +64,34 @@ function Tasks() {
 const fetchTasks = async () => {
   setLoading(true);
   setMessage('');
+  console.log('Bắt đầu fetch tasks từ Supabase...');
+
+  // Thêm timeout 10 giây để tránh treo vô hạn
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Timeout: Quá thời gian kết nối Supabase')), 10000)
+  );
 
   try {
-    const { data, error } = await supabase
+    const query = supabase
       .from('tasks')
       .select('id, title, completed, pdf_url, created_at')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Supabase error:', error);
-      setMessage('Lỗi load: ' + error.message);
-      setTasks([]);
-    } else {
-      console.log('Load thành công:', data);
-      setTasks(data || []);
-    }
+    const { data, error } = await Promise.race([query, timeoutPromise]);
+
+    if (error) throw error;
+
+    console.log('Load tasks thành công:', data);
+    setTasks(data || []);
   } catch (err) {
-    console.error('Lỗi bất ngờ:', err);
-    setMessage('Lỗi kết nối Supabase');
+    console.error('Lỗi fetch tasks:', err);
+    setMessage('Lỗi load tasks: ' + (err.message || 'Kết nối Supabase thất bại'));
     setTasks([]);
   } finally {
-    // <<< Dòng quan trọng nhất: luôn tắt loading
     setLoading(false);
+    console.log('Kết thúc fetch - loading tắt');
   }
 };
-
 
   // Upload file PDF → trả về public URL
   const uploadPdf = async (file, taskId) => {
