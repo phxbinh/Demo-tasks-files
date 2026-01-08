@@ -29,18 +29,35 @@
 
   <script>
   // === KHỞI TẠO SUPABASE CLIENT ===
-const supabaseUrl = 'https://defkqhylqphoqiikvbii.supabase.co';  // <<< Thay bằng URL project của bạn
-const supabaseAnonKey = 'sb_publishable_vzdQpgqjLL2VE0Oyc0kEJQ_P8XqBwkh';             // <<< Thay bằng anon key của bạn
+const SUPABASE_URL = 'https://defkqhylqphoqiikvbii.supabase.co';  // <<< Thay bằng URL project của bạn
+const SUPABASE_ANON_KEY = 'sb_publishable_vzdQpgqjLL2VE0Oyc0kEJQ_P8XqBwkh';             // <<< Thay bằng anon key của bạn
 
-// Init client và gán toàn cục
-window.supabase = window.supabase || (() => {
+ // Khởi tạo Supabase client toàn cục
+if (!window.supabase) {
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  script.onload = () => {
+    const { createClient } = window['@supabase/supabase-js'];
+    window.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log('Supabase client đã được khởi tạo');
+    // Force reload trang để component dùng supabase mới
+    if (window.location.pathname === '/tasks') {
+      window.location.reload();
+    }
+  };
+  script.onerror = () => console.error('Lỗi load Supabase JS library');
+  document.head.appendChild(script);
+} else {
+  console.log('Supabase client đã tồn tại');
+}
+
+// Nếu script đã load rồi nhưng chưa có client, tạo luôn
+if (!window.supabase && window['@supabase/supabase-js']) {
   const { createClient } = window['@supabase/supabase-js'];
-  return createClient(supabaseUrl, supabaseAnonKey);
-})();
+  window.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
 
-// Log để check
-console.log('Supabase client đã init:', window.supabase);
-  </script>
+    </script>
 
   <script src="app.js"></script>
 
