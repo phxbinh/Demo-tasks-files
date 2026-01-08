@@ -61,6 +61,7 @@ if (!window.supabase && window['@supabase/supabase-js']) {
     </script>
 <!---->
 
+<!-- INIT SUPABASE TRƯỚC -->
 <script type="module">
   import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
@@ -69,10 +70,13 @@ if (!window.supabase && window['@supabase/supabase-js']) {
     'sb_publishable_vzdQpgqjLL2VE0Oyc0kEJQ_P8XqBwkh'
   );
 
-  console.log('Supabase READY', window.supabase);
-</script>
+  console.log('Supabase READY');
 
-  <script src="app.js"></script>
+  // 🚀 SAU KHI SUPABASE READY → LOAD APP
+  const script = document.createElement('script');
+  script.src = 'app.js';
+  document.body.appendChild(script);
+</script>
 
 </body>
 </html>
