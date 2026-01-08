@@ -35,7 +35,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_vzdQpgqjLL2VE0Oyc0kEJQ_P8XqBwkh';     
  // Khởi tạo Supabase client toàn cục
 if (!window.supabase) {
   const script = document.createElement('script');
-  script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
   script.onload = () => {
     const { createClient } = window['@supabase/supabase-js'];
     window.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
