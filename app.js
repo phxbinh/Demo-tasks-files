@@ -1,25 +1,24 @@
 const { h } = window.App.VDOM;
 const { useState, useEffect } = window.App.Hooks;
-const { init, addRoute, Link, Outlet, navbarDynamic } = window.App.Router;
+const { init, addRoute, Link, navbarDynamic } = window.App.Router;
 
-// Giả sử supabase client đã được khởi tạo toàn cục (window.supabase hoặc import)
-const supabase = window.supabase; // Đảm bảo bạn đã init supabase trước
+// Giả sử supabase client đã được khởi tạo toàn cục
+const supabase = window.supabase;
 
-// Navbar
 function Navbar() {
   return h('nav', null,
     h(Link, { to: '/', children: 'Home' }),
     ' | ',
     h(Link, { to: '/about', children: 'About' }),
     ' | ',
-    h(Link, { to: '/tasks', children: 'Quản lý Tasks (CRUD)' })
+    h(Link, { to: '/tasks', children: 'Quản lý Tasks + PDF' })
   );
 }
 
 function Home() {
   return h('div', { className: 'container' },
     h('h1', null, 'Chào mừng đến với Framework Tự Build!'),
-    h('p', null, 'Demo CRUD tasks với upload PDF.'),
+    h('p', null, 'Demo CRUD tasks với upload và download file PDF từ Supabase Storage.'),
     h('p', null, 'Mỗi task có thể đính kèm 1 file PDF.')
   );
 }
@@ -27,15 +26,15 @@ function Home() {
 function About() {
   return h('div', { className: 'container' },
     h('h1', null, 'Giới Thiệu'),
-    h('p', null, 'Framework frontend nhẹ + Supabase Storage cho file PDF.')
+    h('p', null, 'Framework frontend nhẹ tự build + Supabase (Database + Storage).')
   );
 }
 
-// Component Tasks - Có upload + download PDF
+// Component Tasks với upload/download PDF
 function Tasks() {
   const [tasks, setTasks] = useState([]);
   const [newTitle, setNewTitle] = useState('');
-  const [newPdfFile, setNewPdfFile] = useState(null); // File chọn để upload khi thêm mới
+  const [newPdfFile, setNewPdfFile] = useState(null); // File khi thêm mới
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
   const [editPdfFile, setEditPdfFile] = useState(null); // File mới khi sửa
@@ -61,25 +60,26 @@ function Tasks() {
     setLoading(false);
   };
 
-  // Upload PDF và trả về public URL
+  // Upload file PDF → trả về public URL
   const uploadPdf = async (file, taskId) => {
     if (!file) return null;
 
-    // Tên file duy nhất: taskId + timestamp + ext
     const ext = file.name.split('.').pop();
     const fileName = `${taskId}_${Date.now()}.${ext}`;
-    const filePath = `${fileName}`;
+    const filePath = fileName;
 
     const { data, error } = await supabase.storage
-      .from('task-pdfs')           // <<< Tạo bucket này trong Supabase Storage
-      .upload(filePath, file, { upsert: true });
+      .from('task-pdfs') // <<< Đảm bảo bucket này tồn tại và PUBLIC
+      .upload(filePath, file, {
+        upsert: true,
+        contentType: 'application/pdf' // Quan trọng để browser hiển thị đúng
+      });
 
     if (error) {
       console.error('Upload error:', error);
       throw error;
     }
 
-    // Lấy public URL
     const { data: urlData } = supabase.storage
       .from('task-pdfs')
       .getPublicUrl(filePath);
@@ -87,7 +87,7 @@ function Tasks() {
     return urlData.publicUrl;
   };
 
-  // Add task mới (có thể có PDF)
+  // Thêm task mới (có thể có PDF)
   const addTask = async () => {
     if (!newTitle.trim()) return;
 
@@ -95,7 +95,7 @@ function Tasks() {
     setMessage('');
 
     try {
-      // Bước 1: Tạo task trước để lấy ID
+      // Tạo task trước để lấy ID
       const { data: newTask, error: insertError } = await supabase
         .from('tasks')
         .insert({ title: newTitle.trim() })
@@ -104,19 +104,16 @@ function Tasks() {
 
       if (insertError) throw insertError;
 
-      let pdfUrl = null;
+      // Nếu có file PDF → upload và update url
       if (newPdfFile) {
-        pdfUrl = await uploadPdf(newPdfFile, newTask.id);
-      }
-
-      // Bước 2: Nếu có PDF thì update lại pdf_url
-      if (pdfUrl) {
-        const { error: updateError } = await supabase
-          .from('tasks')
-          .update({ pdf_url: pdfUrl })
-          .eq('id', newTask.id);
-
-        if (updateError) throw updateError;
+        const pdfUrl = await uploadPdf(newPdfFile, newTask.id);
+        if (pdfUrl) {
+          const { error: updateError } = await supabase
+            .from('tasks')
+            .update({ pdf_url: pdfUrl })
+            .eq('id', newTask.id);
+          if (updateError) throw updateError;
+        }
       }
 
       setNewTitle('');
@@ -130,7 +127,7 @@ function Tasks() {
     }
   };
 
-  // Update task (title + có thể thay PDF mới)
+  // Lưu sửa task (title + thay PDF nếu có)
   const saveEdit = async () => {
     if (!editTitle.trim()) return;
 
@@ -185,92 +182,147 @@ function Tasks() {
     setLoading(false);
   };
 
-  // UI cho mỗi task
-  const TaskItem = (task) => {
-    const isEditing = editingId === task.id;
-
-    return h('li', { key: task.id, style: { marginBottom: '1rem', padding: '1rem', border: '1px solid #ccc', borderRadius: '8px' } },
-      h('input', {
-        type: 'checkbox',
-        checked: task.completed || false,
-        onChange: () => toggleCompleted(task)
-      }),
-      ' ',
-      isEditing ? h('div', null,
-        h('input', {
-          type: 'text',
-          value: editTitle,
-          onInput: e => setEditTitle(e.target.value),
-          style: { width: '300px', marginBottom: '8px' }
-        }),
-        h('br'),
-        h('input', {
-          type: 'file',
-          accept: '.pdf',
-          onChange: e => setEditPdfFile(e.target.files[0] || null)
-        }),
-        h('p', { style: { fontSize: '0.9em', color: '#555' } },
-          task.pdf_url ? 'PDF hiện tại: ' : 'Chưa có PDF',
-          task.pdf_url && h('a', { href: task.pdf_url, target: '_blank', style: { marginLeft: '8px' } }, 'Xem')
-        ),
-        h('div', { style: { marginTop: '8px' } },
-          h('button', { onClick: saveEdit, disabled: loading }, 'Lưu'),
-          ' ',
-          h('button', { onClick: () => { setEditingId(null); setEditPdfFile(null); } }, 'Hủy')
-        )
-      ) : h('span', null,
-        h('strong', { style: { textDecoration: task.completed ? 'line-through' : 'none' } }, task.title),
-        task.pdf_url && h('span', null,
-          ' | ',
-          h('a', {
-            href: task.pdf_url,
-            download: true,               // Gợi ý browser tải về thay vì mở
-            style: { color: 'blue', textDecoration: 'underline' }
-          }, 'Tải PDF về'),
-          ' ',
-          h('a', { href: task.pdf_url, target: '_blank', style: { fontSize: '0.8em' } }, '(xem)')
-        )
-      ),
-      '   ',
-      !isEditing && h('button', { onClick: () => { setEditingId(task.id); setEditTitle(task.title); } }, 'Sửa'),
-      ' ',
-      h('button', { onClick: () => deleteTask(task.id), style: { color: 'red' } }, 'Xóa')
-    );
-  };
-
   return h('div', { className: 'container' },
     h('h1', null, 'Quản lý Tasks + PDF'),
 
     // Form thêm task mới
-    h('div', { style: { marginBottom: '2rem', padding: '1rem', border: '1px dashed #aaa', borderRadius: '8px' } },
+    h('div', {
+      style: {
+        marginBottom: '2rem',
+        padding: '1.5rem',
+        backgroundColor: '#f8f9fa',
+        borderRadius: '12px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.1)'
+      }
+    },
+      h('h3', { style: { marginTop: 0 } }, 'Thêm task mới'),
       h('input', {
         type: 'text',
-        placeholder: 'Tiêu đề task mới',
+        placeholder: 'Nhập tiêu đề task...',
         value: newTitle,
         onInput: e => setNewTitle(e.target.value),
         disabled: loading,
-        style: { width: '400px', marginRight: '8px' }
+        style: { width: '100%', maxWidth: '500px', padding: '10px', marginBottom: '12px', fontSize: '1.1em' }
       }),
-      h('br'),
-      h('input', {
-        type: 'file',
-        accept: '.pdf',
-        onChange: e => setNewPdfFile(e.target.files[0] || null)
-      }),
-      newPdfFile && h('span', { style: { marginLeft: '8px', color: 'green' } }, `Đã chọn: ${newPdfFile.name}`),
-      h('br'),
+      h('div', { style: { marginBottom: '16px' } },
+        h('label', {
+          style: {
+            display: 'inline-block',
+            padding: '12px 24px',
+            backgroundColor: '#28a745',
+            color: 'white',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }
+        },
+          newPdfFile ? `✓ Đã chọn: ${newPdfFile.name}` : '📎 Chọn file PDF (tùy chọn)',
+          h('input', {
+            type: 'file',
+            accept: '.pdf',
+            onChange: e => setNewPdfFile(e.target.files[0] || null),
+            style: { display: 'none' }
+          })
+        ),
+        newPdfFile && h('button', {
+          onClick: () => setNewPdfFile(null),
+          style: { marginLeft: '12px', background: 'none', border: 'none', color: 'red', fontSize: '1.4em', cursor: 'pointer' }
+        }, '✕')
+      ),
       h('button', {
         onClick: addTask,
-        disabled: loading || !newTitle.trim()
-      }, loading ? 'Đang xử lý...' : 'Thêm Task')
+        disabled: loading || !newTitle.trim(),
+        style: {
+          padding: '12px 30px',
+          fontSize: '1.1em',
+          backgroundColor: newTitle.trim() ? '#007bff' : '#6c757d',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer'
+        }
+      }, loading ? 'Đang xử lý...' : '➕ Thêm Task')
     ),
 
-    message && h('p', { style: { color: message.includes('Lỗi') ? 'red' : 'green', fontWeight: 'bold' } }, message),
+    // Thông báo
+    message && h('p', {
+      style: {
+        padding: '12px',
+        borderRadius: '8px',
+        backgroundColor: message.includes('Lỗi') ? '#f8d7da' : '#d4edda',
+        color: message.includes('Lỗi') ? '#721c24' : '#155724',
+        fontWeight: 'bold'
+      }
+    }, message),
 
-    loading && !tasks.length ? h('p', null, 'Đang tải...') :
-      h('ul', { style: { listStyle: 'none', padding: 0 } },
-        ...tasks.map(TaskItem)
-      )
+    // Danh sách tasks
+    loading && !tasks.length ? h('p', null, 'Đang tải danh sách...') :
+    h('ul', { style: { listStyle: 'none', padding: 0 } },
+      tasks.map(task => h('li', {
+        key: task.id,
+        style: { marginBottom: '1rem', padding: '1.5rem', border: '1px solid #ddd', borderRadius: '12px', backgroundColor: '#fff' }
+      },
+        h('input', {
+          type: 'checkbox',
+          checked: task.completed || false,
+          onChange: () => toggleCompleted(task)
+        }),
+        ' ',
+
+        // Hiển thị hoặc chỉnh sửa
+        editingId === task.id ? h('div', { style: { display: 'inline-block', width: '70%' } },
+          h('input', {
+            type: 'text',
+            value: editTitle,
+            onInput: e => setEditTitle(e.target.value),
+            style: { width: '100%', padding: '8px', marginBottom: '8px' }
+          }),
+          h('div', { style: { marginBottom: '12px' } },
+            h('label', {
+              style: {
+                display: 'inline-block',
+                padding: '8px 16px',
+                backgroundColor: editPdfFile ? '#28a745' : '#6c757d',
+                color: 'white',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }
+            },
+              editPdfFile ? `File mới: ${editPdfFile.name}` : 'Chọn PDF thay thế',
+              h('input', {
+                type: 'file',
+                accept: '.pdf',
+                onChange: e => setEditPdfFile(e.target.files[0] || null),
+                style: { display: 'none' }
+              })
+            ),
+            editPdfFile && h('button', {
+              onClick: () => setEditPdfFile(null),
+              style: { marginLeft: '8px', background: 'none', border: 'none', color: 'red' }
+            }, '✕')
+          ),
+          task.pdf_url && h('p', { style: { fontSize: '0.9em', color: '#555' } },
+            'PDF hiện tại: ',
+            h('a', { href: task.pdf_url, target: '_blank' }, 'Xem online')
+          ),
+          h('button', { onClick: saveEdit, disabled: loading, style: { marginRight: '8px' } }, 'Lưu'),
+          h('button', { onClick: () => { setEditingId(null); setEditPdfFile(null); } }, 'Hủy')
+        ) : h('span', null,
+          h('strong', { style: { textDecoration: task.completed ? 'line-through' : 'none', fontSize: '1.2em' } }, task.title),
+          task.pdf_url && h('span', { style: { marginLeft: '12px' } },
+            ' | ',
+            h('a', { href: task.pdf_url, download: true, style: { color: '#007bff', fontWeight: 'bold' } }, 'Tải PDF'),
+            ' ',
+            h('a', { href: task.pdf_url, target: '_blank', style: { fontSize: '0.9em', color: '#555' } }, '(xem)')
+          )
+        ),
+
+        '   ',
+        editingId !== task.id && h('button', { onClick: () => { setEditingId(task.id); setEditTitle(task.title); } }, 'Sửa'),
+        ' ',
+        h('button', { onClick: () => deleteTask(task.id), style: { color: 'red' } }, 'Xóa')
+      ))
+    )
   );
 }
 
