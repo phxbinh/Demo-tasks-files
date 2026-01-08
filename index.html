@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Framework + Supabase + vercel</title>
+  <style>
+
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+<!-- Framework -->
+<script src="./framework/Debugger.js"></script>
+<script src="./framework/vdom.js"></script>
+<script src="./framework/hooks.js"></script>
+<script src="./framework/router.js"></script>
+<!---->
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+    window.supabase = createClient(
+      'https://defkqhylqphoqiikvbii.supabase.co',        'sb_publishable_vzdQpgqjLL2VE0Oyc0kEJQ_P8XqBwkh'
+    );
+  </script>
+
+  <script src="app.js"></script>
+
+</body>
+</html>
+
+<!----
+https://framework-frontend-vdom-v01.vercel.app/postsnew
+<!---->
